@@ -1,4 +1,6 @@
-﻿namespace LR2;
+﻿using System;
+
+namespace LR2;
 
 
 internal static class Program
@@ -86,7 +88,7 @@ internal static class Program
     }
 
 
-    private static void Main(string[] args)
+    private static void Main()
     {
         {
             //var a = Array.ConvertAll(Console.ReadLine().Trim().Split(' '), Convert.ToInt32);

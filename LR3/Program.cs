@@ -1,4 +1,8 @@
-﻿namespace LR3;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace LR3;
 
 public interface IClient
 {
@@ -179,7 +183,7 @@ public class Bank
 
 internal static class Program
 {
-    private static void Main(string[] args)
+    private static void Main()
     {
         var bank = new Bank();
 
