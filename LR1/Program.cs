@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 
 namespace LR1;
 
@@ -17,28 +18,41 @@ public abstract class Operation2 : IOperation
     }
 }
 
-public class SumOperation : Operation2 {
-    protected override double? Calculate(double x, double y) { return x + y; }
+public class SumOperation : Operation2
+{
+    protected override double? Calculate(double x, double y)
+    {
+        return x + y;
+    }
 }
 
-public class SubOperation : Operation2 {
-    protected override double? Calculate(double x, double y) { return x - y; }
+public class SubOperation : Operation2
+{
+    protected override double? Calculate(double x, double y)
+    {
+        return x - y;
+    }
 }
 
-public class MulOperation : Operation2 {
-    protected override double? Calculate(double x, double y) { return x * y; }
+public class MulOperation : Operation2
+{
+    protected override double? Calculate(double x, double y)
+    {
+        return x * y;
+    }
 }
 
 public class DivOperation : Operation2
 {
     private const double Precision = 1e-6;
+
     protected override double? Calculate(double x, double y)
     {
         if (Math.Abs(y) < Precision) {
             Console.WriteLine("Division by zero!");
             return null;
         }
-        
+
         return x / y;
     }
 }
@@ -56,7 +70,7 @@ public class ConsoleReaderWriter : IReaderWriter
     {
         Console.Write(s);
     }
-    
+
     public uint ReadUInt()
     {
         while (true) {
@@ -88,10 +102,12 @@ public interface ICalculator
     /// Предоставляет возможность пользователю выбрать операцию
     /// </summary>
     public void SelectOperation();
+
     /// <summary>
     /// Предоставляет возможность пользователю ввода аргументов для выбранной операции
     /// </summary>
     public void InputArguments();
+
     /// <summary>
     /// Выполняет выбранную операциию с введёнными аргументами
     /// </summary>
@@ -104,25 +120,26 @@ public class ConsoleCalculator : ICalculator
     private readonly IOperation[] _operations;
     private IOperation? _selectedOperation;
     private double[]? _arguments;
+
     public ConsoleCalculator(IReaderWriter readerWriter, IOperation[] operations)
     {
         _readerWriter = readerWriter;
         _operations = operations;
     }
-    
+
     public void SelectOperation()
     {
         _selectedOperation = null;
-        
+
         _readerWriter.Write("Select operation:\n");
-        do { 
+        do {
             for (uint i = 0; i < _operations.Length; ++i) {
                 _readerWriter.Write($"{i}. {_operations[i]}\n");
             }
-            
+
             _readerWriter.Write("> ");
             var operationIndex = _readerWriter.ReadUInt();
-            
+
             if (operationIndex < _operations.Length) {
                 _selectedOperation = _operations[operationIndex];
             }
@@ -133,7 +150,7 @@ public class ConsoleCalculator : ICalculator
     {
         _readerWriter.Write("Arg1> ");
         var arg1 = _readerWriter.ReadDouble();
-        
+
         _readerWriter.Write("Arg2> ");
         var arg2 = _readerWriter.ReadDouble();
 
@@ -144,14 +161,14 @@ public class ConsoleCalculator : ICalculator
     {
         Debug.Assert(_selectedOperation != null, nameof(_selectedOperation) + " != null");
         Debug.Assert(_arguments != null, nameof(_arguments) + " != null");
-        
+
         var result = _selectedOperation.Execute(_arguments);
-        
+
         _readerWriter.Write($"Result: {result}\n");
     }
 }
 
-public static class MainClass
+internal static class Program
 {
     public static void Main()
     {
