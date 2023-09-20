@@ -1,87 +1,92 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace LR3;
 
+public class DynamicArray<T> : IList<T>
+{
+    private T[] _items = Array.Empty<T>();
+
+
+    public IEnumerator<T> GetEnumerator()
+    {
+        return ((IEnumerable<T>)_items).GetEnumerator();
+    }
+    IEnumerator IEnumerable.GetEnumerator() { return GetEnumerator(); }
+    public void Add(T item) { _items = _items.Concat(new[] { item }).ToArray(); }
+    public void Clear() { _items = Array.Empty<T>(); }
+    public bool Contains(T item) { return _items.Contains(item); }
+    public void CopyTo(T[] array, int arrayIndex) {
+        throw new NotImplementedException();
+    }
+    public bool Remove(T item) {
+        throw new NotImplementedException();
+    }
+
+    public int Count => _items.Length;
+    public bool IsReadOnly => _items.IsReadOnly;
+    public int IndexOf(T item) => Array.IndexOf(_items, item);
+
+    public void Insert(int index, T item) => throw new NotImplementedException();
+
+    public void RemoveAt(int index) => throw new NotImplementedException();
+
+    public T this[int index]
+    {
+        get => _items[index];
+        set => throw new NotImplementedException();
+    }
+}
+
 public interface IClient
 {
     public void AddNewAccountId(int id);
+    public IEnumerable<int> GetAccountIds();
+
+    public string GetName();
+    public int GetAge();
+    public string GetWorkplace();
 }
+
 
 public class Client : IClient
 {
-    public Client(string name, uint age, string workPlace)
+    public Client(string name, int age, string workPlace)
     {
         Name = name;
         Age = age;
         WorkPlace = workPlace;
-        AccountIds = Array.Empty<int>();
+        AccountIds = new DynamicArray<int>();
     }
 
-    public string Name { get; }
-    public uint Age { get; }
-    public string WorkPlace { get; }
-    public int[] AccountIds { get; private set; }
+    private string Name { get; }
+    private int Age { get; }
+    private string WorkPlace { get; }
+    private ICollection<int> AccountIds { get; }
 
-    public void AddNewAccountId(int id)
-    {
-        AccountIds = AccountIds.Concat(new[] { id }).ToArray();
-    }
+    public string GetName() => Name;
+    public int GetAge() => Age;
+    public string GetWorkplace() => WorkPlace;
+    public IEnumerable<int> GetAccountIds() => AccountIds;
 
-    public override string ToString()
-    {
-        return $"ФИО: {Name}\n" +
-               $"Возраст: {Age}\n" +
-               $"Место работы: {WorkPlace}\n" +
-               $"Номер счетов: {string.Join(", ", AccountIds)}\n";
-    }
+    public void AddNewAccountId(int id) => AccountIds.Add(id);
 }
 
-public abstract class HistoryEntry
+public readonly struct Transaction
 {
-    protected HistoryEntry(DateTime timestamp)
+    public Transaction(DateTime timestamp, ActionType action, int amount)
     {
         Timestamp = timestamp;
-    }
-
-    protected DateTime Timestamp { get; }
-}
-
-public class AccountHistoryEntry : HistoryEntry
-{
-    public enum ActionType { Close, Open }
-
-    public ActionType Action { get; }
-
-    public AccountHistoryEntry(DateTime timestamp, ActionType action) : base(timestamp)
-    {
-        Action = action;
-    }
-
-    public override string ToString()
-    {
-        return $"[{Timestamp}] Счёт был {(Action == ActionType.Open ? "открыт" : "закрыт")}";
-    }
-}
-
-public class BalanceHistoryEntry : HistoryEntry
-{
-    public enum ActionType { Withdraw, Deposit }
-
-    public ActionType Action { get; }
-    public int Amount { get; }
-
-    public BalanceHistoryEntry(DateTime timestamp, ActionType action, int amount) : base(timestamp)
-    {
         Action = action;
         Amount = amount;
     }
 
-    public override string ToString()
-    {
-        return $"[{Timestamp}] Счёт изменён на {(Action == ActionType.Withdraw ? "-" : "")}{Amount}";
-    }
+    public DateTime Timestamp { get; }
+    public enum ActionType { Withdraw, Deposit }
+    public ActionType Action { get; }
+    public int Amount { get; }
 }
 
 public interface IAccount
@@ -91,126 +96,238 @@ public interface IAccount
     public void Deposit(int amount);
     public void Withdraw(int amount);
     public int GetBalance();
-    public IEnumerable<HistoryEntry> GetHistory();
+    public IEnumerable<Transaction> GetHistory();
+    public bool IsOpen();
 }
 
-public class Account : IAccount
+public class SimpleAccount : IAccount
+{
+    private enum AccountState { Close, Open }
+    
+    private int _balance;
+    private AccountState _state;
+    private readonly ICollection<Transaction> _transactions = new DynamicArray<Transaction>();
+
+    public virtual void Open() => _state = AccountState.Open;
+    public virtual void Close() => _state = AccountState.Close;
+
+    public virtual void Deposit(int amount)
+    {
+        if (_state == AccountState.Close)
+            throw new InvalidOperationException("Account is closed.");
+        
+        if (amount <= 0)
+            throw new ArgumentException("Deposit amount must be greater than zero.");
+
+        _balance += amount;
+        _transactions.Add(new Transaction(DateTime.Now, Transaction.ActionType.Deposit, amount));
+    }
+    public virtual void Withdraw(int amount)
+    {
+        if (_state == AccountState.Close)
+            throw new InvalidOperationException("Account is closed.");
+        
+        if (amount <= 0)
+            throw new ArgumentException("Withdrawal amount must be greater than zero.");
+
+        if (_balance < amount)
+            throw new InvalidOperationException("Insufficient balance for withdrawal.");
+
+        _balance -= amount; // TODO: check balance
+        _transactions.Add(new Transaction(DateTime.Now, Transaction.ActionType.Withdraw, amount));
+    }
+
+    public virtual int GetBalance() => _balance;
+    public virtual IEnumerable<Transaction> GetHistory() => _transactions;
+    public virtual bool IsOpen() => _state == AccountState.Open;
+}
+
+public class ThreadSafeAccount : SimpleAccount
 {
     private readonly object _accountLock = new();
-    private int _balance;
-    private bool _isOpen;
-    private HistoryEntry[] _history = Array.Empty<HistoryEntry>();
 
-    private void AddHistoryEntry(HistoryEntry historyEntry)
+    public override void Open() { lock (_accountLock) base.Open(); }
+    public override void Close() { lock (_accountLock) base.Close(); }
+    public override void Deposit(int amount) { lock (_accountLock) base.Deposit(amount); }
+    public override void Withdraw(int amount) { lock (_accountLock) base.Withdraw(amount); }
+    public override int GetBalance() { lock (_accountLock) return base.GetBalance(); }
+    public override IEnumerable<Transaction> GetHistory() { lock (_accountLock) return base.GetHistory(); }
+    public override bool IsOpen() { lock (_accountLock) return base.IsOpen(); }
+}
+
+public interface IBank
+{
+    public void Transfer(IAccount fromAccount, IAccount toAccount, int amount);
+    public void RegisterNewClient(IClient client);
+    public void CreateNewAccount(IClient client);
+    IEnumerable<IClient> GetClients();
+    IClient GetClientById(int id);
+    IEnumerable<IAccount> GetAccounts();
+    IAccount GetAccountById(int id);
+}
+
+public class Bank : IBank
+{
+    private readonly IList<IClient> _clients = new DynamicArray<IClient>();
+    private readonly IList<IAccount> _accounts = new DynamicArray<IAccount>();
+    
+    public void Transfer(IAccount fromAccount, IAccount toAccount, int amount)
     {
-        _history = _history.Concat(new[] { historyEntry }).ToArray();
+         lock (fromAccount) lock (toAccount) {
+             if (fromAccount.GetBalance() < amount)
+                 throw new InvalidOperationException("Insufficient balance in the source account.");
+
+             fromAccount.Withdraw(amount);
+             toAccount.Deposit(amount);
+         }
     }
 
-    public void Open()
-    {
-        if (_isOpen) return;
+    public void RegisterNewClient(IClient client) => _clients.Add(client);
 
-        var historyEntry = new AccountHistoryEntry(DateTime.Now, AccountHistoryEntry.ActionType.Open);
-        lock (_accountLock) {
-            _isOpen = true;
-            AddHistoryEntry(historyEntry);
+    public void CreateNewAccount(IClient client)
+    {
+        lock (client)
+        lock (_accounts) {
+            client.AddNewAccountId(_accounts.Count);
+            _accounts.Add(new ThreadSafeAccount());
         }
     }
 
-    public void Close()
-    {
-        if (!_isOpen) return;
+    public IEnumerable<IClient> GetClients() => _clients;
+    public IClient GetClientById(int id) => _clients[id];
 
-        var historyEntry = new AccountHistoryEntry(DateTime.Now, AccountHistoryEntry.ActionType.Close);
-        lock (_accountLock) {
-            _isOpen = false;
-            AddHistoryEntry(historyEntry);
+    public IEnumerable<IAccount> GetAccounts()
+    {
+        lock (_accounts) {
+            return _accounts;
         }
     }
 
-    public void Deposit(int amount)
+    public IAccount GetAccountById(int id)
     {
-        if (!_isOpen) return;
-
-        var historyEntry = new BalanceHistoryEntry(DateTime.Now, BalanceHistoryEntry.ActionType.Deposit, amount);
-        lock (_accountLock) {
-            _balance += amount;
-            AddHistoryEntry(historyEntry);
-        }
-    }
-
-    public void Withdraw(int amount)
-    {
-        if (!_isOpen) return;
-
-        var historyEntry = new BalanceHistoryEntry(DateTime.Now, BalanceHistoryEntry.ActionType.Withdraw, amount);
-        lock (_accountLock) {
-            _balance -= amount;
-            AddHistoryEntry(historyEntry);
-        }
-    }
-
-    public int GetBalance()
-    {
-        lock (_accountLock) {
-            return _balance;
-        }
-    }
-
-    public IEnumerable<HistoryEntry> GetHistory()
-    {
-        lock (_accountLock) {
-            return _history;
-        }
+        lock (_accounts)
+            return _accounts[id];
     }
 }
 
-public class Bank
+public interface IManager<in T> {
+    void Manage(T managable);
+}
+
+public abstract class ConsoleManager<T> : IManager<T>
 {
-    private Account[] _accounts = Array.Empty<Account>();
+    private readonly IDictionary<string, Action<T>> _commands;
+    
+    protected ConsoleManager(IDictionary<string, Action<T>> commands) => _commands = commands;
+    
+    private void PrintCommands() => Console.WriteLine("Commands: " + string.Join(", ", _commands.Keys));
 
-    public void OpenNewAccountForClient(IClient client)
+    protected static string ReadWithPrompt(string prompt = "")
     {
-        client.AddNewAccountId(_accounts.Length);
-        _accounts = _accounts.Concat(new[] { new Account() }).ToArray();
+        Console.Write(prompt);
+        return Console.ReadLine();
+    }
+    
+    protected static int ReadInt(string prompt = "Int> ") => Convert.ToInt32(ReadWithPrompt(prompt));
+    
+    protected static void SafeExecute(Action action)
+    {
+        try {
+            action.Invoke();
+        } catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+    }
+    
+    private string ReadCommand(string prompt = "")
+    {
+        while (true) {
+            var command = ReadWithPrompt(prompt);
+            
+            if (_commands.ContainsKey(command))
+                return command;
+
+            Console.WriteLine($"Unknown command '{command}'!");
+        }
     }
 
-    public Account GetAccountById(int id)
+    public void Manage(T managable)
     {
-        return _accounts[id];
+        PrintCommands();
+        
+        var command = ReadCommand("> ");
+        var action = _commands[command];
+        
+        action(managable);
     }
+}
+
+public class AccountConsoleManager : ConsoleManager<IAccount>
+{
+    public AccountConsoleManager() : base(new Dictionary<string, Action<IAccount>> {
+        {"open", account => account.Open() },
+        {"close", account => account.Close() },
+        {"deposit", account => SafeExecute(() => account.Deposit(ReadInt("Amount> "))) },
+        {"withdraw", account => SafeExecute(() => account.Withdraw(ReadInt("Amount> "))) },
+        {"balance", account => Console.WriteLine($"Balance: {account.GetBalance()}") },
+        {"history", account => PrintHistory(account.GetHistory()) },
+    }) { }
+    
+    private static void PrintHistory(IEnumerable<Transaction> transactions)
+    {
+        Console.WriteLine("Transactions:");
+        foreach (var transaction in transactions) {
+            Console.WriteLine(FormatTransaction(transaction));
+        }
+    }
+
+    private static string FormatTransaction(Transaction transaction)
+    {
+        return $"[{transaction.Timestamp}] Account balance changed by {(transaction.Action == Transaction.ActionType.Withdraw ? "-" : "")}{transaction.Amount}";
+    }
+}
+
+public class BankConsoleManager : ConsoleManager<IBank>
+{
+    public BankConsoleManager(IManager<IAccount> accountManager) : base(new Dictionary<string, Action<IBank>> {
+        {"new_client", bank => bank.RegisterNewClient(ReadClient()) },
+        {"clients", bank => PrintClients(bank.GetClients()) },
+        {"new_account", bank => SafeExecute(() => 
+            bank.CreateNewAccount(bank.GetClientById(ReadInt("Client ID> ")))) },
+        {"manage_account", bank => SafeExecute(() => 
+            accountManager.Manage(bank.GetAccountById(ReadInt("Account ID> ")))) },
+        {"transfer", bank => SafeExecute(() => bank.Transfer(
+            bank.GetAccountById(ReadInt("AccountFrom ID> ")), 
+            bank.GetAccountById(ReadInt("AccountTo ID> ")), 
+            ReadInt("Amount> "))) },
+    }) { }
+
+    private static IClient ReadClient() {
+        return new Client(ReadWithPrompt("Name: "), ReadInt("Age> "), ReadWithPrompt("Workplace: "));
+    }
+
+    private static void PrintClients(IEnumerable<IClient> clients) {
+        foreach (var client in clients) Console.WriteLine(FormatClient(client));
+    }
+
+    private static string FormatClient(IClient client) =>
+        $"Name       : {client.GetName()}\n" +
+        $"Age        : {client.GetAge()}\n" +
+        $"Workplace  : {client.GetWorkplace()}\n" +
+        $"Account IDs: {string.Join(", ", client.GetAccountIds())}\n";
 }
 
 internal static class Program
 {
     private static void Main()
     {
-        var bank = new Bank();
+        IBank bank = new Bank();
+        IManager<IBank> bankManager = new BankConsoleManager(new AccountConsoleManager());
 
-        var client1 = new Client("Иванов Иван Иванович", 30, "МГТУ им. Н.Э. Баунмана");
-        bank.OpenNewAccountForClient(client1);
-        bank.OpenNewAccountForClient(client1);
-
-        var client2 = new Client("Петров Пётр Петрович", 45, "Синергия");
-        bank.OpenNewAccountForClient(client2);
-        bank.OpenNewAccountForClient(client2);
-        bank.OpenNewAccountForClient(client2);
-
-
-        Console.WriteLine(client2);
-        var id = client2.AccountIds[0];
-        Console.WriteLine($"Номер счёта: {id}");
-
-        var account = bank.GetAccountById(id);
-        account.Open();
-        account.Deposit(5000);
-        account.Withdraw(2000);
-        account.Close();
-        account.Withdraw(2000);
-
-        Console.WriteLine($"Баланс: {account.GetBalance()}");
-        foreach (var historyEntry in account.GetHistory()) {
-            Console.WriteLine(historyEntry);
+        while (true) {
+            bankManager.Manage(bank);
+            Console.WriteLine();
         }
     }
 }
