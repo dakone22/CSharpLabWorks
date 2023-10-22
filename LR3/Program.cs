@@ -66,22 +66,6 @@ public class Client : IClient
     private string WorkPlace { get; }
     private ICollection<int> AccountIds { get; }
 
-    public IClient IClient
-    {
-        get => default;
-        set
-        {
-        }
-    }
-
-    public DynamicArray<object> DynamicArray
-    {
-        get => default;
-        set
-        {
-        }
-    }
-
     public string GetName() => Name;
     public int GetAge() => Age;
     public string GetWorkplace() => WorkPlace;
@@ -187,22 +171,6 @@ public class Bank : IBank
     private readonly IList<IClient> _clients = new DynamicArray<IClient>();
     private readonly IList<IAccount> _accounts = new DynamicArray<IAccount>();
 
-    public IBank IBank
-    {
-        get => default;
-        set
-        {
-        }
-    }
-
-    public DynamicArray<object> DynamicArray
-    {
-        get => default;
-        set
-        {
-        }
-    }
-
     public void Transfer(IAccount fromAccount, IAccount toAccount, int amount)
     {
          lock (fromAccount) lock (toAccount) {
@@ -251,14 +219,6 @@ public abstract class ConsoleManager<T> : IManager<T>
     private readonly IDictionary<string, Action<T>> _commands;
     
     protected ConsoleManager(IDictionary<string, Action<T>> commands) => _commands = commands;
-
-    public IManager<T> IManager
-    {
-        get => default;
-        set
-        {
-        }
-    }
 
     private void PrintCommands() => Console.WriteLine("Commands: " + string.Join(", ", _commands.Keys));
 
@@ -314,14 +274,6 @@ public class AccountConsoleManager : ConsoleManager<IAccount>
         {"history", account => PrintHistory(account.GetHistory()) },
     }) { }
 
-    public IAccount IAccount
-    {
-        get => default;
-        set
-        {
-        }
-    }
-
     private static void PrintHistory(IEnumerable<Transaction> transactions)
     {
         Console.WriteLine("Transactions:");
@@ -351,30 +303,6 @@ public class BankConsoleManager : ConsoleManager<IBank>
             ReadInt("Amount> "))) },
     }) { }
 
-    public IBank IBank
-    {
-        get => default;
-        set
-        {
-        }
-    }
-
-    public ThreadSafeAccount ThreadSafeAccount
-    {
-        get => default;
-        set
-        {
-        }
-    }
-
-    public Client Client
-    {
-        get => default;
-        set
-        {
-        }
-    }
-
     private static IClient ReadClient() {
         return new Client(ReadWithPrompt("Name: "), ReadInt("Age> "), ReadWithPrompt("Workplace: "));
     }
@@ -392,30 +320,6 @@ public class BankConsoleManager : ConsoleManager<IBank>
 
 internal static class Program
 {
-    public static BankConsoleManager BankConsoleManager
-    {
-        get => default;
-        set
-        {
-        }
-    }
-
-    public static AccountConsoleManager AccountConsoleManager
-    {
-        get => default;
-        set
-        {
-        }
-    }
-
-    public static Bank Bank
-    {
-        get => default;
-        set
-        {
-        }
-    }
-
     private static void Main()
     {
         IBank bank = new Bank();

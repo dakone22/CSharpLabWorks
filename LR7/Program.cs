@@ -27,14 +27,6 @@ namespace LR7
 
         public int PropertyWithoutAttribute { get; set; }
 
-        public MyAttribute MyAttribute
-        {
-            get => default;
-            set
-            {
-            }
-        }
-
         public void Method1()
         {
             Console.WriteLine("Вызван Method1");
